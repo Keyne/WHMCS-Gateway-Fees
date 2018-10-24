@@ -20,49 +20,76 @@ function update_gateway_fee1($vars)
 function update_gateway_fee2($vars)
 {
     $paymentmethod = $vars['paymentmethod'];
-    delete_query("tblinvoiceitems", "invoiceid='" . $vars[invoiceid] . "' and notes='gateway_fees'");
+    delete_query("tblinvoiceitems", "invoiceid='" . $vars['invoiceid'] . "' and notes='gateway_fees'");
+
     $result = select_query("tbladdonmodules", "setting,value", "setting='fee_2_" . $vars['paymentmethod'] . "' or setting='fee_1_" . $vars[paymentmethod] . "'");
     while ($data = mysql_fetch_array($result)) {
         $params[$data[0]] = $data[1];
     }
 
-    $fee1 = ($params['fee_1_' . $paymentmethod]);
-    $fee2 = ($params['fee_2_' . $paymentmethod]);
-    $total = InvoiceTotal($vars['invoiceid']);
+    $fee1 = (float) ($params['fee_1_' . $paymentmethod]);
+    $fee2 = (float) ($params['fee_2_' . $paymentmethod]);
+    $total = (float) InvoiceTotal($vars['invoiceid']);
     if ($total > 0) {
-        $amountdue = $fee1 + $total * $fee2 / 100;
-        if ($fee1 > 0 & $fee2 > 0) {
+        $amountdue = $fee1 + ($total * $fee2) / 100;
+
+        if ($fee1 != 0 && $fee2 != 0) {
             $d = $fee1 . '+' . $fee2 . "%";
         }
-        elseif ($fee2 > 0) {
+        elseif ($fee2 != 0) {
             $d = $fee2 . "%";
         }
-        elseif ($fee1 > 0) {
+        elseif ($fee1 != 0) {
             $d = $fee1;
         }
     }
 
+    echo '<pre>';
+    var_dump($vars);
+    var_dump($params);
+    var_dump($amountdue);
+    var_dump($total);
+    var_dump($fee1);
+    var_dump($fee2);
+    var_dump(($total * $fee2) / 100);
+    var_dump($d);
+    var_dump(array(
+        "userid" => $_SESSION['uid'],
+        "invoiceid" => $vars['invoiceid'],
+        "type" => "Fee",
+        "notes" => "gateway_fees",
+        "description" => getGatewayName2($vars['paymentmethod']) . " Fees ($d)",
+        "amount" => $amountdue,
+        "taxed" => "0",
+        "duedate" => "now()",
+        "paymentmethod" => $vars['paymentmethod']
+    ));
+    echo '</pre>';
+    //exit;
+
     if ($d) {
+
         insert_query("tblinvoiceitems", array(
             "userid" => $_SESSION['uid'],
-            "invoiceid" => $vars[invoiceid],
+            "invoiceid" => $vars['invoiceid'],
             "type" => "Fee",
             "notes" => "gateway_fees",
             "description" => getGatewayName2($vars['paymentmethod']) . " Fees ($d)",
             "amount" => $amountdue,
             "taxed" => "0",
             "duedate" => "now()",
-            "paymentmethod" => $vars[paymentmethod]
+            "paymentmethod" => $vars['paymentmethod']
         ));
     }
 
-    updateInvoiceTotal($vars[invoiceid]);
+    updateInvoiceTotal($vars['invoiceid']);
 }
 
 add_hook("InvoiceChangeGateway", 1, "update_gateway_fee2");
 add_hook("InvoiceCreated", 1, "update_gateway_fee1");
 add_hook("AdminInvoicesControlsOutput", 2, "update_gateway_fee3");
-add_hook("AdminInvoicesControlsOutput", 1, "update_gateway_fee1");
+// Removido para que as invoices já geradas com desconto não seja atualizadas ao acessá-las
+//add_hook("AdminInvoicesControlsOutput", 1, "update_gateway_fee1");
 add_hook("InvoiceCreationAdminArea", 1, "update_gateway_fee1");
 add_hook("InvoiceCreationAdminArea", 2, "update_gateway_fee3");
 
